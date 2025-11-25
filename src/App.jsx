@@ -262,9 +262,16 @@ export default function OccupationalHealthApp() {
     }
 
     let stage = "正常";
-    if (sys >= 160 || dia >= 100) stage = "二";
-    else if (sys >= 140 || dia >= 90) stage = "一";
-    else if (sys >= 130 || dia >= 80) stage = "高血壓前期";
+    // 依據圖表原則判定 (以較嚴重者為準)
+    if (sys >= 160 || dia >= 100) {
+        stage = "二";
+    } else if (sys >= 140 || dia >= 90) {
+        stage = "一";
+    } else if (sys >= 120 || dia >= 80) {
+        stage = "高血壓前期";
+    } else {
+        stage = "正常";
+    }
 
     setPhysio(prev => ({ ...prev, bpStage: stage }));
   }, [physio.bpSys, physio.bpDia]);
@@ -298,9 +305,15 @@ export default function OccupationalHealthApp() {
     const para1 = `${basicInfo.name || "OOO"}，${basicInfo.gender}性，${basicInfo.age || "O"}歲，負責${basicInfo.jobType}，${basicInfo.shift}，工時${basicInfo.hours}，114年健檢健康管理分級${basicInfo.grade}，因${abnormalStr}異常，安排諮詢關懷：`;
 
     // Paragraph 2
-    const bpText = physio.bpStage 
-      ? `今日血壓量測持續偏高，已達第${physio.bpStage}期高血壓範圍，` 
-      : "今日血壓量測數值如上，";
+    // 依據血壓分期調整顯示文字
+    let bpText = "今日血壓量測數值如上，";
+    if (physio.bpStage === "一" || physio.bpStage === "二") {
+        bpText = `今日血壓量測持續偏高，已達第${physio.bpStage}期高血壓範圍，`;
+    } else if (physio.bpStage === "高血壓前期") {
+        bpText = `今日血壓量測數值屬於高血壓前期範圍，`;
+    } else if (physio.bpStage === "正常") {
+        bpText = `今日血壓量測數值正常，`;
+    }
     
     const homeBpText = (physio.homeBpSys && physio.homeBpDia) 
       ? `${physio.homeBpSys}/${physio.homeBpDia}` 
