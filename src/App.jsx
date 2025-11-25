@@ -1,71 +1,83 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Copy, FileText, Activity, Stethoscope, Coffee, BookOpen, RefreshCw, CheckCircle2, Settings, Plus, Trash2, Save, ArrowLeft } from 'lucide-react';
+import { Copy, FileText, Activity, Stethoscope, Coffee, BookOpen, RefreshCw, CheckCircle2, Settings, Plus, Trash2, ArrowLeft } from 'lucide-react';
 
 /**
- * DEFAULT DATA CONSTANTS (Initial data only, state will override)
+ * DATA CONSTANTS & ADVICE MAPS
+ * 依據使用者提供的 CSV 資料建立建議對照表
  */
 
+// --- 1. 職務與基本資料選項 ---
 const DEFAULT_JOB_TYPES = [
-  "行政/文書作業",
-  "客服/門市/銷售作業",
-  "生產/加工作業",
-  "組裝/包裝作業",
-  "倉儲/物流/搬運作業",
-  "機械維修/保養作業",
-  "清潔/環境維護作業",
-  "化學品相關作業",
-  "外勤/工程/施工作業",
-  "餐飲烹調/食品處理作業",
-  "專業/教學/技術服務類作業",
-  "寵物美容作業",
-  "其他"
+  "行政/文書作業", "客服/門市/銷售作業", "生產/加工作業", "組裝/包裝作業",
+  "倉儲/物流/搬運作業", "機械維修/保養作業", "清潔/環境維護作業", "化學品相關作業",
+  "外勤/工程/施工作業", "餐飲烹調/食品處理作業", "專業/教學/技術服務類作業", "寵物美容作業", "其他"
 ];
-
 const DEFAULT_SHIFTS = ["日班", "中班", "夜班", "輪班", "其他"];
 const DEFAULT_WORKING_HOURS = ["8小時", "12小時", "其他"];
 const DEFAULT_HEALTH_GRADES = ["一級", "二級", "三級", "四級"];
 const DEFAULT_ABNORMAL_VALUES = ["腰圍", "血壓", "血糖", "總膽固醇", "三酸甘油酯", "高密度脂蛋白", "低密度脂蛋白", "肝功能(GOT/GPT)", "腎功能(Cre/eGFR)", "尿酸", "BMI異常", "聽力異常", "其他"];
 
+// --- 2. 藥物使用 ---
 const DEFAULT_MEDICATION_STATUS = [
-  "無",
-  "成藥",
-  "慢性病藥物（規則服用）",
-  "慢性病藥物（不規則服用）",
-  "精神科／助眠",
-  "保健食品",
-  "其他"
+  "無", "成藥", "慢性病藥物（規則服用）", "慢性病藥物（不規則服用）", "精神科／助眠", "保健食品", "其他"
 ];
 
+const MEDICATION_ADVICE_MAP = {
+  "無": "個案目前未使用藥物，若已有三高或檢查異常，建議透過生活習慣控制（規律運動、均衡飲食、戒菸限酒），並定期追蹤血壓、血糖及血脂。若必要，醫師將評估是否開始藥物治療。",
+  "成藥": "個案偶爾使用成藥，提醒避免自行長期服用控制三高，須以醫師指示為主。生活習慣控制仍為主要管理策略，並需定期追蹤生化數據。",
+  "慢性病藥物（規則服用）": "個案規律服用慢性病藥物，建議持續規律用藥，搭配低鹽低油飲食、規律運動及回診追蹤，可有效維持血壓、血糖及血脂穩定。",
+  "慢性病藥物（不規則服用）": "個案偶爾漏服或不規律使用慢性病藥物，建議建立用藥提醒（鬧鐘、藥盒），並於回診告知實際服藥狀況。強調規律服藥與生活習慣協同管理三高，降低心血管事件風險。",
+  "精神科／助眠": "個案服用精神科或助眠藥物，需定期監測血壓、血糖及血脂，避免藥物間交互作用。建議規律作息、睡眠衛教及生活習慣控制，以降低三高併發症風險。",
+  "保健食品": "個案使用保健食品，提醒不可取代醫師處方藥物，使用前應告知醫師或護理人員。建議持續規律飲食與運動，並定期檢測三高相關指標。",
+  "其他": "個案使用其他藥物或補充品，建議完整紀錄服用內容，避免自行調整或疊加藥效。並定期回診監測三高指標，生活習慣維持穩定。"
+};
+
+// --- 3. 睡眠狀況 ---
 const DEFAULT_SLEEP_STATUS = [
-  "正常（充足且規律）",
-  "尚可（睡眠略不足或偶有中斷）",
-  "難入睡（失眠、入睡困難）",
-  "常熬夜（晚睡、睡眠不足）"
+  "正常（充足且規律）", "尚可（睡眠略不足或偶有中斷）", "難入睡（失眠、入睡困難）", "常熬夜（晚睡、睡眠不足）"
 ];
 
+const SLEEP_ADVICE_MAP = {
+  "正常（充足且規律）": "個案睡眠規律且充足，建議持續維持良好睡眠習慣，確保每日 7–8 小時休息。配合規律運動及均衡飲食，有助血壓、血糖及血脂穩定。",
+  "尚可（睡眠略不足或偶有中斷）": "個案睡眠狀況尚可，建議固定睡眠與起床時間，避免晚間攝取含咖啡因或過量糖分食物。規律運動及放鬆技巧可提升睡眠品質，有助三高控制。",
+  "難入睡（失眠、入睡困難）": "個案入睡困難，建議睡前建立放鬆習慣（深呼吸、伸展、溫水沐浴），避免使用電子產品及刺激性飲料。規律運動與低糖低鹽飲食可輔助改善睡眠並穩定三高指標。",
+  "常熬夜（晚睡、睡眠不足）": "個案長期熬夜，建議調整作息，盡量固定睡眠時間，避免夜間高熱量或高咖啡因攝取。增加白天活動量與規律運動，並配合均衡飲食，以降低三高及心血管風險。"
+};
+
+// --- 4. 飲食習慣 ---
 const DEFAULT_DIET_HABITS = [
-  "三餐規律",
-  "飲食不規律",
-  "外食為主",
-  "少蔬果",
-  "高油脂飲食",
-  "高糖飲食",
-  "高鹽飲食",
-  "吃太快",
-  "食量少／食慾差",
-  "宵夜習慣",
-  "零食／甜食"
+  "三餐規律", "飲食不規律", "外食為主", "少蔬果", "高油脂飲食", "高糖飲食", "高鹽飲食", "吃太快", "食量少／食慾差", "宵夜習慣", "零食／甜食"
 ];
 
+const DIET_ADVICE_MAP = {
+  "三餐規律": "建議持續維持規律進食習慣，並依需求調整蔬菜、水分及原型食物攝取，以保持代謝穩定及能量供應。",
+  "飲食不規律": "飲食時間不固定易造成血糖波動，建議先建立基本進食節律，於每日固定時段攝取三餐，避免長時間空腹。",
+  "外食為主": "建議外食時主動選擇「少油、少鹽、少醬」的餐點，如燉煮、清蒸。飯量可減半，並養成「每餐多一份蔬菜」的習慣。",
+  "少蔬果": "每天至少吃 3 份蔬菜、2 份水果。外食可加點燙青菜，下午飢餓時優先選擇水果而非零食。",
+  "高油脂飲食": "建議減少油炸、酥皮、肥肉等攝取，改以蒸、煮、烤、涼拌等烹調方式，降低心血管負擔。",
+  "高糖飲食": "建議減少含糖飲料及精緻甜點攝取，改喝白開水或無糖茶，以控制血糖及體重。",
+  "高鹽飲食": "建議減少醃漬品、醬料及加工食品攝取，多吃新鮮蔬果幫助鈉離子代謝，有助血壓控制。",
+  "吃太快": "建議每口食物咀嚼 15-20 下，用餐時間至少 20 分鐘，增加飽足感訊號，避免過量進食。",
+  "食量少／食慾差": "建議採少量多餐方式，選擇高營養密度食物（如豆漿、蛋、牛奶），維持基本熱量需求。",
+  "宵夜習慣": "建議睡前 3 小時避免進食，若飢餓可喝少量溫牛奶或豆漿，減輕腸胃負擔與脂肪堆積。",
+  "零食／甜食": "建議以無調味堅果、水果取代餅乾糖果，並控制攝取份量，避免攝取過多空熱量。"
+};
+
+// --- 5. 運動習慣 ---
 const DEFAULT_EXERCISE_HABITS = [
-  "無運動習慣",
-  "偶爾運動（不規律）",
-  "規律運動（每週≧2~3）",
-  "強度運動（每週≧3~5次，中高強度）",
-  "特殊或職業性體力活動",
-  "活動量不足"
+  "無運動習慣", "偶爾運動（不規律）", "規律運動（每週≧2~3）", "強度運動（每週≧3~5次，中高強度）", "特殊或職業性體力活動", "活動量不足"
 ];
 
+const EXERCISE_ADVICE_MAP = {
+  "無運動習慣": "個案長期缺乏運動，建議建立每日步行、快走或輕度有氧運動習慣，每次 20–30 分鐘，每週 ≥3 次，逐步提升心肺功能。",
+  "偶爾運動（不規律）": "個案運動頻率不足，建議規律化運動，每週固定 2–3 次，每次 30 分鐘以上，包含快走、慢跑或游泳等中等強度有氧運動。",
+  "規律運動（每週≧2~3）": "個案運動規律，建議持續維持現行運動習慣，並注意運動強度與安全，避免過度疲勞。",
+  "強度運動（每週≧3~5次，中高強度）": "個案運動強度較高，建議持續維持，但應注意運動前後熱身及緩和，避免突發心血管事件。",
+  "特殊或職業性體力活動": "個案日常工作具體力消耗，但活動強度與規律性不穩定。建議每日仍保留固定有氧運動或肌力訓練 20–30 分鐘，不依賴工作量取代規律運動。",
+  "活動量不足": "個案日常活動量偏低，建議從增加日常活動開始，如走路、家務、樓梯代替電梯，減少久坐時間。"
+};
+
+// --- 6. 衛教資料庫 (手動選擇用) ---
 const DEFAULT_HEALTH_EDU_DB = {
   "血糖管理": [
     "飲食規律與三餐固定：維持三餐規律，避免跳餐或忽餓忽飽。",
@@ -145,7 +157,7 @@ export default function OccupationalHealthApp() {
   // --- SETTINGS / CONFIGURATION STATE ---
   const [view, setView] = useState("report"); // 'report' or 'settings'
   
-  // Persisted Option Lists
+  // Persisted Option Lists (These drive the Dropdowns)
   const [jobTypes, setJobTypes] = usePersistedState("jobTypes", DEFAULT_JOB_TYPES);
   const [shifts, setShifts] = usePersistedState("shifts", DEFAULT_SHIFTS);
   const [workingHours, setWorkingHours] = usePersistedState("workingHours", DEFAULT_WORKING_HOURS);
@@ -194,8 +206,9 @@ export default function OccupationalHealthApp() {
   });
 
   useEffect(() => {
+      // Set default medication status if not set
       if(!physio.medStatus && medicationStatusList.length > 0) {
-          setPhysio(p => ({...p, medStatus: medicationStatusList[2]})); // Default to Chronic Regular
+          setPhysio(p => ({...p, medStatus: medicationStatusList[0]})); // Default to First item (usually "無")
       }
   }, [medicationStatusList]);
 
@@ -262,7 +275,6 @@ export default function OccupationalHealthApp() {
     }
 
     let stage = "正常";
-    // 依據圖表原則判定 (以較嚴重者為準)
     if (sys >= 160 || dia >= 100) {
         stage = "二";
     } else if (sys >= 140 || dia >= 90) {
@@ -305,7 +317,6 @@ export default function OccupationalHealthApp() {
     const para1 = `${basicInfo.name || "OOO"}，${basicInfo.gender}性，${basicInfo.age || "O"}歲，負責${basicInfo.jobType}，${basicInfo.shift}，工時${basicInfo.hours}，114年健檢健康管理分級${basicInfo.grade}，因${abnormalStr}異常，安排諮詢關懷：`;
 
     // Paragraph 2
-    // 依據血壓分期調整顯示文字
     let bpText = "今日血壓量測數值如上，";
     if (physio.bpStage === "一" || physio.bpStage === "二") {
         bpText = `今日血壓量測持續偏高，已達第${physio.bpStage}期高血壓範圍，`;
@@ -326,14 +337,69 @@ export default function OccupationalHealthApp() {
     
     const para3 = `生活型態部分，個案目前${lifestyle.smoking}、${lifestyle.drinking}。運動方面${lifestyle.exercise}。飲食方面${lifestyle.diet}，飲食中碳水化合物比例偏高${carbText}。睡眠時間每日約 ${lifestyle.sleepHours} 小時，${lifestyle.sleepStatus}。飲水量約 ${lifestyle.waterVol}cc／日，平時以${lifestyle.drinkType}為主要飲品。`;
 
-    // Paragraph 4
-    const recsList = selectedRecommendations.map((rec, i) => `${i + 1}. ${rec}`).join("\n");
-    const para4 = `建議如下：\n${recsList || "(尚未選擇衛教建議)"}`;
+    // Paragraph 4 - Auto Recommendations + Manual Recommendations with Grouping
+    
+    let para4Content = "建議如下：\n";
 
-    return `${para1}\n\n${para2}\n\n${para3}\n\n${para4}`;
+    // 1. Auto Recommendations (Life Style)
+    const autoRecs = [];
+    if (physio.medStatus && MEDICATION_ADVICE_MAP[physio.medStatus]) {
+      autoRecs.push(MEDICATION_ADVICE_MAP[physio.medStatus]);
+    }
+    if (lifestyle.sleepStatus && SLEEP_ADVICE_MAP[lifestyle.sleepStatus]) {
+      autoRecs.push(SLEEP_ADVICE_MAP[lifestyle.sleepStatus]);
+    }
+    if (lifestyle.diet && DIET_ADVICE_MAP[lifestyle.diet]) {
+      autoRecs.push(DIET_ADVICE_MAP[lifestyle.diet]);
+    }
+    if (lifestyle.exercise && EXERCISE_ADVICE_MAP[lifestyle.exercise]) {
+      autoRecs.push(EXERCISE_ADVICE_MAP[lifestyle.exercise]);
+    }
+
+    if (autoRecs.length > 0) {
+        para4Content += "\n『生活習慣建議』\n";
+        para4Content += autoRecs.map((rec, i) => `${i + 1}. ${rec}`).join("\n");
+        para4Content += "\n";
+    }
+
+    // 2. Manual Recommendations (Grouped by Category)
+    
+    // Create a map to group selected recs by their category from healthEduDb
+    const groupedManualRecs = {};
+    const remainingRecs = new Set(selectedRecommendations);
+
+    // Scan the DB to find which category the selected items belong to
+    Object.keys(healthEduDb).forEach(cat => {
+        const catItems = healthEduDb[cat];
+        const matchingItems = catItems.filter(item => remainingRecs.has(item));
+        
+        if (matchingItems.length > 0) {
+            groupedManualRecs[cat] = matchingItems;
+            // Remove matched items from set
+            matchingItems.forEach(item => remainingRecs.delete(item));
+        }
+    });
+
+    // If there are still items left (e.g., custom added ones), put them in '其他/自訂建議'
+    if (remainingRecs.size > 0) {
+        groupedManualRecs['其他/自訂建議'] = Array.from(remainingRecs);
+    }
+
+    // Build the string for manual recs
+    Object.keys(groupedManualRecs).forEach(cat => {
+        para4Content += `\n${cat}\n`;
+        para4Content += groupedManualRecs[cat].map((rec, i) => `${i + 1}. ${rec}`).join("\n");
+        para4Content += "\n";
+    });
+
+    if (autoRecs.length === 0 && selectedRecommendations.length === 0) {
+        para4Content += "(尚未選擇或生成建議)";
+    }
+
+    return `${para1}\n\n${para2}\n\n${para3}\n\n${para4Content.trim()}`;
   };
 
-  const reportContent = useMemo(generateReport, [basicInfo, physio, lifestyle, selectedRecommendations]);
+  const reportContent = useMemo(generateReport, [basicInfo, physio, lifestyle, selectedRecommendations, healthEduDb]);
 
   const copyToClipboard = () => {
     const textArea = document.createElement("textarea");
@@ -352,7 +418,7 @@ export default function OccupationalHealthApp() {
   const clearAll = () => {
     if(confirm("確定要重置表單嗎？(管理選項不會被刪除)")) {
        setBasicInfo({ name: "", gender: "男", age: "", jobType: jobTypes[0], shift: shifts[0], hours: workingHours[0], grade: healthGrades[1], abnormalValues: [] });
-       setPhysio({ bpSys: "", bpDia: "", bpStage: "", homeBpSys: "", homeBpDia: "", hasMonitor: "有", medStatus: medicationStatusList[2] });
+       setPhysio({ bpSys: "", bpDia: "", bpStage: "", homeBpSys: "", homeBpDia: "", hasMonitor: "有", medStatus: medicationStatusList[0] });
        setLifestyle({ smoking: "無吸菸習慣", drinking: "無飲酒習慣", exercise: exerciseHabitsList[0], diet: dietHabitsList[0], carbPref: "", sleepHours: "6-7", sleepStatus: sleepStatusList[0], waterVol: "1500", drinkType: "白開水" });
        setSelectedRecommendations([]);
     }
