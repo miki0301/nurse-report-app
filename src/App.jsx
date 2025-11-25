@@ -181,6 +181,7 @@ export default function OccupationalHealthApp() {
     hours: "",
     grade: "",
     abnormalValues: [],
+    otherAbnormalValue: "", // 新增：儲存「其他」異常數值的自填內容
   });
 
   // Initialize dropdowns with first item if empty
@@ -217,7 +218,7 @@ export default function OccupationalHealthApp() {
     smoking: "無吸菸習慣",
     drinking: "無飲酒習慣",
     exercise: "",
-    diet: "",
+    diet: [], // 改為陣列以支援複選
     carbPref: "",
     sleepHours: "6-7",
     sleepStatus: "",
@@ -229,7 +230,7 @@ export default function OccupationalHealthApp() {
       setLifestyle(prev => ({
           ...prev,
           exercise: prev.exercise || exerciseHabitsList[0],
-          diet: prev.diet || dietHabitsList[0],
+          // diet: prev.diet || dietHabitsList[0], // 移除單選預設
           sleepStatus: prev.sleepStatus || sleepStatusList[0]
       }));
   }, [exerciseHabitsList, dietHabitsList, sleepStatusList]);
@@ -292,6 +293,15 @@ export default function OccupationalHealthApp() {
     setLifestyle(prev => ({ ...prev, [field]: value }));
   };
 
+  // 新增：飲食習慣複選處理
+  const handleDietToggle = (value) => {
+    setLifestyle(prev => {
+      const exists = prev.diet.includes(value);
+      if (exists) return { ...prev, diet: prev.diet.filter(v => v !== value) };
+      return { ...prev, diet: [...prev.diet, value] };
+    });
+  };
+
   const addRecommendation = (rec) => {
     if (!selectedRecommendations.includes(rec)) {
       setSelectedRecommendations([...selectedRecommendations, rec]);
@@ -312,8 +322,22 @@ export default function OccupationalHealthApp() {
   // --- REPORT GENERATION LOGIC ---
 
   const generateReport = () => {
+    // 處理異常數值字串（包含「其他」的自填內容）
+    const getAbnormalString = () => {
+      if (basicInfo.abnormalValues.length === 0) return "無明顯";
+      
+      return basicInfo.abnormalValues.map(val => {
+        // 如果選項是「其他」且有填寫內容，則使用填寫內容，否則顯示「其他」
+        if (val === "其他" && basicInfo.otherAbnormalValue.trim()) {
+          return basicInfo.otherAbnormalValue.trim();
+        }
+        return val;
+      }).join("、");
+    };
+
+    const abnormalStr = getAbnormalString();
+
     // Paragraph 1
-    const abnormalStr = basicInfo.abnormalValues.length > 0 ? basicInfo.abnormalValues.join("、") : "無明顯";
     const para1 = `${basicInfo.name || "OOO"}，${basicInfo.gender}性，${basicInfo.age || "O"}歲，負責${basicInfo.jobType}，${basicInfo.shift}，工時${basicInfo.hours}，114年健檢健康管理分級${basicInfo.grade}，因${abnormalStr}異常，安排諮詢關懷：`;
 
     // Paragraph 2
@@ -330,12 +354,14 @@ export default function OccupationalHealthApp() {
       ? `${physio.homeBpSys}/${physio.homeBpDia}` 
       : "未測量";
 
-    const para2 = `${bpText}個案主述於家中測量血壓約為 ${homeBpText} mmHg，家中${physio.hasMonitor}血壓計可自行監測。目前藥物使用情況${physio.medStatus}，114年健檢報告顯示異常數值均高於正常值`;
+    // 修改處：將異常數值字串帶入第二段結尾
+    const para2 = `${bpText}個案主述於家中測量血壓約為 ${homeBpText} mmHg，家中${physio.hasMonitor}血壓計可自行監測。目前藥物使用情況${physio.medStatus}，114年健檢報告顯示${abnormalStr === "無明顯" ? "" : abnormalStr}異常數值均高於正常值`;
 
     // Paragraph 3
     const carbText = lifestyle.carbPref ? `，特別偏好${lifestyle.carbPref}類食物` : "";
+    const dietText = lifestyle.diet.length > 0 ? lifestyle.diet.join("、") : "未填寫";
     
-    const para3 = `生活型態部分，個案目前${lifestyle.smoking}、${lifestyle.drinking}。運動方面${lifestyle.exercise}。飲食方面${lifestyle.diet}，飲食中碳水化合物比例偏高${carbText}。睡眠時間每日約 ${lifestyle.sleepHours} 小時，${lifestyle.sleepStatus}。飲水量約 ${lifestyle.waterVol}cc／日，平時以${lifestyle.drinkType}為主要飲品。`;
+    const para3 = `生活型態部分，個案目前${lifestyle.smoking}、${lifestyle.drinking}。運動方面${lifestyle.exercise}。飲食方面${dietText}，飲食中碳水化合物比例偏高${carbText}。睡眠時間每日約 ${lifestyle.sleepHours} 小時，${lifestyle.sleepStatus}。飲水量約 ${lifestyle.waterVol}cc／日，平時以${lifestyle.drinkType}為主要飲品。`;
 
     // Paragraph 4 - Auto Recommendations + Manual Recommendations with Grouping
     
@@ -349,16 +375,25 @@ export default function OccupationalHealthApp() {
     if (lifestyle.sleepStatus && SLEEP_ADVICE_MAP[lifestyle.sleepStatus]) {
       autoRecs.push(SLEEP_ADVICE_MAP[lifestyle.sleepStatus]);
     }
-    if (lifestyle.diet && DIET_ADVICE_MAP[lifestyle.diet]) {
-      autoRecs.push(DIET_ADVICE_MAP[lifestyle.diet]);
+    
+    // 飲食建議迴圈處理 (複選)
+    if (lifestyle.diet && lifestyle.diet.length > 0) {
+        lifestyle.diet.forEach(item => {
+            if (DIET_ADVICE_MAP[item]) {
+                autoRecs.push(DIET_ADVICE_MAP[item]);
+            }
+        });
     }
+
     if (lifestyle.exercise && EXERCISE_ADVICE_MAP[lifestyle.exercise]) {
       autoRecs.push(EXERCISE_ADVICE_MAP[lifestyle.exercise]);
     }
 
     if (autoRecs.length > 0) {
         para4Content += "\n『生活習慣建議』\n";
-        para4Content += autoRecs.map((rec, i) => `${i + 1}. ${rec}`).join("\n");
+        // 去除重複建議
+        const uniqueAutoRecs = [...new Set(autoRecs)];
+        para4Content += uniqueAutoRecs.map((rec, i) => `${i + 1}. ${rec}`).join("\n");
         para4Content += "\n";
     }
 
@@ -417,9 +452,9 @@ export default function OccupationalHealthApp() {
 
   const clearAll = () => {
     if(confirm("確定要重置表單嗎？(管理選項不會被刪除)")) {
-       setBasicInfo({ name: "", gender: "男", age: "", jobType: jobTypes[0], shift: shifts[0], hours: workingHours[0], grade: healthGrades[1], abnormalValues: [] });
+       setBasicInfo({ name: "", gender: "男", age: "", jobType: jobTypes[0], shift: shifts[0], hours: workingHours[0], grade: healthGrades[1], abnormalValues: [], otherAbnormalValue: "" });
        setPhysio({ bpSys: "", bpDia: "", bpStage: "", homeBpSys: "", homeBpDia: "", hasMonitor: "有", medStatus: medicationStatusList[0] });
-       setLifestyle({ smoking: "無吸菸習慣", drinking: "無飲酒習慣", exercise: exerciseHabitsList[0], diet: dietHabitsList[0], carbPref: "", sleepHours: "6-7", sleepStatus: sleepStatusList[0], waterVol: "1500", drinkType: "白開水" });
+       setLifestyle({ smoking: "無吸菸習慣", drinking: "無飲酒習慣", exercise: exerciseHabitsList[0], diet: [], carbPref: "", sleepHours: "6-7", sleepStatus: sleepStatusList[0], waterVol: "1500", drinkType: "白開水" });
        setSelectedRecommendations([]);
     }
   };
@@ -536,6 +571,18 @@ export default function OccupationalHealthApp() {
                                 </button>
                             ))}
                             </div>
+                            {/* 新增：其他異常數值輸入框 */}
+                            {basicInfo.abnormalValues.includes("其他") && (
+                                <div className="mt-2">
+                                    <input
+                                        type="text"
+                                        value={basicInfo.otherAbnormalValue}
+                                        onChange={(e) => handleBasicChange("otherAbnormalValue", e.target.value)}
+                                        className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-emerald-400 outline-none"
+                                        placeholder="請輸入其他異常項目 (例如：視力、聽力...)"
+                                    />
+                                </div>
+                            )}
                         </div>
                         </div>
                     </section>
@@ -617,10 +664,22 @@ export default function OccupationalHealthApp() {
 
                         {/* Diet */}
                         <div className="space-y-2">
-                            <label className="block text-sm font-medium text-slate-600">飲食習慣</label>
-                            <select value={lifestyle.diet} onChange={(e) => handleLifestyleChange("diet", e.target.value)} className="w-full p-2 border rounded bg-white">
-                            {dietHabitsList.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
+                            <label className="block text-sm font-medium text-slate-600">飲食習慣 (可複選)</label>
+                            <div className="flex flex-wrap gap-2">
+                              {dietHabitsList.map(d => (
+                                <button
+                                  key={d}
+                                  onClick={() => handleDietToggle(d)}
+                                  className={`px-3 py-1 rounded-full text-sm border transition ${
+                                    lifestyle.diet.includes(d) 
+                                      ? "bg-emerald-100 border-emerald-300 text-emerald-700 font-medium" 
+                                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  {d}
+                                </button>
+                              ))}
+                            </div>
                             <input 
                             type="text" 
                             placeholder="特別偏好哪類碳水化合物? (如: 麵包、白飯、甜點)" 
